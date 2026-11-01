@@ -1,0 +1,21 @@
+[
+  {
+    "repo": "nba-tracker",
+    "subdomain": "nba",
+    "name": "NBA",
+    "description": "Tonight's games, standings and live game pages"
+  },
+  {
+    "repo": "football-tracker",
+    "subdomain": "football",
+    "name": "Football",
+    "description": "Second screen for watching matches"
+  },
+  {
+    "repo": "gym-tracker",
+    "subdomain": "gym",
+    "name": "Gym",
+    "description": "Workout log",
+    "agentNote": "`data/` is the only copy of real user data. Never delete or overwrite it."
+  }
+]

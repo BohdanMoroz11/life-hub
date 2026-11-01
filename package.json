@@ -1,0 +1,11 @@
+{
+  "name": "hub",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "live": "node --watch server.mjs",
+    "set-password": "node bin/set-password.mjs",
+    "app": "node bin/app.mjs"
+  },
+  "engines": { "node": ">=22" }
+}
