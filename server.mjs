@@ -10,6 +10,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const DOMAIN = process.env.HUB_DOMAIN ?? "bohdanmoroz.com";
 const HUB_URL = `https://apps.${DOMAIN}`;
 const COOKIE = "hub_session";
+const SIDEBAR_COOKIE = "hub_sidebar"; // "collapsed" or "open". Set by the page's script, host-only on the hub.
 const YEAR = 365 * 24 * 3600;
 const MAX_FAILURES = 10;
 const FAILURE_WINDOW_MS = 15 * 60 * 1000;
@@ -36,10 +37,10 @@ function sameText(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-function readCookie(req) {
+function readCookie(req, name = COOKIE) {
   for (const part of (req.headers.cookie ?? "").split(";")) {
     const [k, v] = part.trim().split("=");
-    if (k === COOKIE) return v;
+    if (k === name) return v;
   }
 }
 
@@ -81,22 +82,26 @@ const doc = (title, body) => `<!doctype html><html lang="en"><head><meta charset
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,sans-serif}
 main{max-width:640px;margin:0 auto;padding:48px 16px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
 h1{font-size:20px;margin:0}ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-a.app{display:block;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:10px;color:inherit;text-decoration:none}
-a.app:hover,a.app:focus-visible{border-color:var(--text)}a.app b{display:block}a.app span{color:var(--muted);font-size:14px}
+a.card{display:block;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:10px;color:inherit;text-decoration:none}
+a.card:hover,a.card:focus-visible{border-color:var(--text)}a.card b{display:block}a.card span{color:var(--muted);font-size:14px}
 input,button{font:inherit;padding:10px 14px;border-radius:8px}input{width:100%;margin-bottom:8px;background:var(--card);color:inherit;border:1px solid var(--line)}
-button{background:var(--accent);color:var(--on);border:0;cursor:pointer;width:100%}button.quiet{background:none;color:var(--muted);width:auto;padding:0}
+button{background:var(--accent);color:var(--on);border:0;cursor:pointer;width:100%}
 .error{color:#c2362b}form.login{max-width:320px;margin:15vh auto 0}
-.shell{display:grid;grid-template-columns:200px 1fr;height:100dvh}.pane{overflow-y:auto;min-width:0}
-nav.side{display:flex;flex-direction:column;gap:2px;padding:16px 10px;background:var(--card);border-right:1px solid var(--line);overflow:auto}
-nav.side a,nav.side button.quiet{padding:8px 10px;border-radius:6px;color:inherit;text-decoration:none;text-align:left;white-space:nowrap}
-nav.side a:hover{background:var(--bg)}nav.side a[aria-current=page]{background:var(--accent);color:var(--on)}
-nav.side a.home{font-weight:600;margin-bottom:8px}nav.side form{margin-top:auto}nav.side button.quiet{color:var(--muted);width:100%}
-.frame{display:flex;flex-direction:column}.frame iframe{flex:1;width:100%;border:0}
-.framebar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--line)}
-.framebar a{color:var(--muted);font-size:14px;text-decoration:none}.framebar a:hover{color:var(--text)}
+.shell{display:grid;grid-template-columns:auto 1fr;height:100dvh}.pane{overflow-y:auto;min-width:0}
+nav.side{width:200px;display:flex;flex-direction:column;gap:2px;padding:12px 8px;background:var(--card);border-right:1px solid var(--line);overflow:hidden auto}
+nav.side .item{display:flex;align-items:center;gap:10px;width:100%;padding:6px;border-radius:6px;background:none;color:inherit;font-size:15px;text-decoration:none;text-align:left;white-space:nowrap}
+nav.side .item:hover{background:var(--bg)}nav.side .item[aria-current=page]{background:var(--accent);color:var(--on)}
+nav.side .ico{flex:none;display:grid;place-items:center;width:28px;height:28px}
+nav.side .badge{border:1px solid var(--line);border-radius:6px;font-size:13px;font-weight:600}nav.side [aria-current=page] .badge{border-color:transparent}
+nav.side svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+nav.side .home{font-weight:600;margin-bottom:6px}nav.side .tools{display:grid;gap:2px;margin-top:auto;padding-top:8px}
+nav.side .tools .item{color:var(--muted)}nav.side .tools .item:hover{color:var(--text)}
+.collapsed nav.side{width:57px}.collapsed nav.side .label{display:none}.collapsed .toggle svg{transform:rotate(180deg)}
+.frame iframe{display:block;width:100%;height:100%;border:0}
 @media(max-width:700px){.shell{grid-template-columns:1fr;grid-template-rows:auto 1fr}
-nav.side{flex-direction:row;align-items:center;padding:8px;border-right:0;border-bottom:1px solid var(--line)}
-nav.side a.home{margin:0 4px 0 0}nav.side form{margin:0 0 0 auto}main{padding-top:24px}}
+nav.side,.collapsed nav.side{width:auto;flex-direction:row;align-items:center;padding:6px 8px;border-right:0;border-bottom:1px solid var(--line);overflow:auto hidden}
+nav.side .item{width:auto}nav.side .home{margin:0}nav.side .label{display:none}nav.side .app .ico,nav.side .toggle{display:none}
+nav.side .app .label,.collapsed nav.side .app .label{display:inline;padding:0 4px}nav.side .tools{display:flex;margin:0 0 0 auto;padding:0}main{padding-top:24px}}
 </style></head><body>${body}</body></html>`;
 
 const page = (title, body) => doc(title, `<main>${body}</main>`);
@@ -105,11 +110,31 @@ const readApps = () => JSON.parse(fs.readFileSync(path.join(root, "apps.json"), 
 const appUrl = (a) => `https://${a.subdomain}.${DOMAIN}`;
 const current = (on) => (on ? ' aria-current="page"' : "");
 
+const ICONS = {
+  home: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
+  open: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  logout: '<path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5M10 8l-4 4 4 4M6 12h10"/>',
+  collapse: '<path d="M18 6l-6 6 6 6M11 6l-6 6 6 6"/>',
+};
+const icon = (name) => `<span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg></span>`;
+// The label hides when the sidebar is collapsed, so title gives the item its name there.
+const inner = (ico, text) => ` title="${esc(text)}">${ico}<span class="label">${esc(text)}</span>`;
+const item = (cls, attrs, ico, text) => `<a class="item ${cls}" ${attrs}${inner(ico, text)}</a>`;
+
+// Toggling only resizes the grid, so the app in the frame keeps its state.
+const TOGGLE_SCRIPT = `<script>document.querySelector(".toggle").addEventListener("click",(e)=>{
+const c=document.querySelector(".shell").classList.toggle("collapsed"),b=e.currentTarget;
+b.setAttribute("aria-expanded",String(!c));b.title=c?"Expand":"Collapse";
+document.cookie="${SIDEBAR_COOKIE}="+(c?"collapsed":"open")+"; Path=/; Max-Age=${YEAR}; SameSite=Lax; Secure";});</script>`;
+
 // Hub pages with the app sidebar. Sidebar links open the app in a frame at /<subdomain>.
-function shell(title, apps, active, content) {
-  const links = apps.map((a) => `<a href="/${esc(a.subdomain)}"${current(a === active)}>${esc(a.name)}</a>`);
-  return doc(title, `<div class="shell"><nav class="side"><a class="home" href="/"${current(!active)}>Apps</a>${links.join("")}
-<form method="post" action="/logout"><button class="quiet">Log out</button></form></nav>${content}</div>`);
+function shell(title, apps, active, collapsed, content) {
+  const links = apps.map((a) => item("app", `href="/${esc(a.subdomain)}"${current(a === active)}`, `<span class="ico badge">${esc(a.name[0])}</span>`, a.name));
+  const open = active ? item("", `href="${esc(appUrl(active))}" target="_blank" rel="noopener"`, icon("open"), "Open separately") : "";
+  return doc(title, `<div class="shell${collapsed ? " collapsed" : ""}"><nav class="side">${item("home", `href="/"${current(!active)}`, icon("home"), "Apps")}${links.join("")}
+<div class="tools">${open}<form method="post" action="/logout"><button class="item"${inner(icon("logout"), "Log out")}</button></form>
+<button type="button" class="item toggle" aria-expanded="${!collapsed}" title="${collapsed ? "Expand" : "Collapse"}">${icon("collapse")}<span class="label">Collapse</span></button></div></nav>
+${content}</div>${TOGGLE_SCRIPT}`);
 }
 
 function loginPage(next, error) {
@@ -119,16 +144,17 @@ function loginPage(next, error) {
 <button>Log in</button></form>`);
 }
 
-function listPage(apps) {
-  const items = apps.map((a) => `<li><a class="app" href="${esc(appUrl(a))}"><b>${esc(a.name)}</b><span>${esc(a.description ?? "")}</span></a></li>`);
-  return shell("Apps", apps, null, `<div class="pane"><main><header><h1>Apps</h1></header><ul>${items.join("")}</ul></main></div>`);
+function listPage(apps, collapsed) {
+  const items = apps.map((a) => `<li><a class="card" href="${esc(appUrl(a))}"><b>${esc(a.name)}</b><span>${esc(a.description ?? "")}</span></a></li>`);
+  return shell("Apps", apps, null, collapsed, `<div class="pane"><main><header><h1>Apps</h1></header><ul>${items.join("")}</ul></main></div>`);
 }
 
-function framePage(apps, app) {
-  return shell(app.name, apps, app, `<div class="pane frame"><div class="framebar"><b>${esc(app.name)}</b>
-<a href="${esc(appUrl(app))}" target="_blank" rel="noopener">Open separately ↗</a></div>
+function framePage(apps, app, collapsed) {
+  return shell(app.name, apps, app, collapsed, `<div class="pane frame">
 <iframe src="${esc(appUrl(app))}" title="${esc(app.name)}" allow="clipboard-write; fullscreen; screen-wake-lock"></iframe></div>`);
 }
+
+const isCollapsed = (req) => readCookie(req, SIDEBAR_COOKIE) === "collapsed";
 
 function send(res, status, body, headers = {}) {
   res.writeHead(status, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...headers });
@@ -190,7 +216,7 @@ async function handle(req, res) {
 
   if (url.pathname === "/" && req.method === "GET") {
     if (!isLoggedIn(req)) return redirect(res, "/login");
-    return send(res, 200, listPage(readApps()), { "set-cookie": sessionCookie(secrets()) }); // opening the hub renews the session
+    return send(res, 200, listPage(readApps(), isCollapsed(req)), { "set-cookie": sessionCookie(secrets()) }); // opening the hub renews the session
   }
 
   // /<subdomain>: the app in a frame, next to the sidebar. Also renews the session.
@@ -199,7 +225,7 @@ async function handle(req, res) {
     const app = apps.find((a) => url.pathname === `/${a.subdomain}`);
     if (app) {
       if (!isLoggedIn(req)) return redirect(res, `/login?next=${encodeURIComponent(HUB_URL + url.pathname)}`);
-      return send(res, 200, framePage(apps, app), { "set-cookie": sessionCookie(secrets()) });
+      return send(res, 200, framePage(apps, app, isCollapsed(req)), { "set-cookie": sessionCookie(secrets()) });
     }
   }
 
