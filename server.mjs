@@ -74,7 +74,7 @@ function safeNext(next) {
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-const page = (title, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
+const doc = (title, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>
 :root{color-scheme:light dark;--bg:#f4f4f2;--card:#fff;--text:#1b1c1e;--muted:#6b6e73;--line:#dcdcd8;--accent:#1b1c1e;--on:#fff}
 @media(prefers-color-scheme:dark){:root{--bg:#141517;--card:#1e2023;--text:#eceded;--muted:#9a9da3;--line:#2e3136;--accent:#eceded;--on:#141517}}
@@ -86,7 +86,31 @@ a.app:hover,a.app:focus-visible{border-color:var(--text)}a.app b{display:block}a
 input,button{font:inherit;padding:10px 14px;border-radius:8px}input{width:100%;margin-bottom:8px;background:var(--card);color:inherit;border:1px solid var(--line)}
 button{background:var(--accent);color:var(--on);border:0;cursor:pointer;width:100%}button.quiet{background:none;color:var(--muted);width:auto;padding:0}
 .error{color:#c2362b}form.login{max-width:320px;margin:15vh auto 0}
-</style></head><body><main>${body}</main></body></html>`;
+.shell{display:grid;grid-template-columns:200px 1fr;height:100dvh}.pane{overflow-y:auto;min-width:0}
+nav.side{display:flex;flex-direction:column;gap:2px;padding:16px 10px;background:var(--card);border-right:1px solid var(--line);overflow:auto}
+nav.side a,nav.side button.quiet{padding:8px 10px;border-radius:6px;color:inherit;text-decoration:none;text-align:left;white-space:nowrap}
+nav.side a:hover{background:var(--bg)}nav.side a[aria-current=page]{background:var(--accent);color:var(--on)}
+nav.side a.home{font-weight:600;margin-bottom:8px}nav.side form{margin-top:auto}nav.side button.quiet{color:var(--muted);width:100%}
+.frame{display:flex;flex-direction:column}.frame iframe{flex:1;width:100%;border:0}
+.framebar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--line)}
+.framebar a{color:var(--muted);font-size:14px;text-decoration:none}.framebar a:hover{color:var(--text)}
+@media(max-width:700px){.shell{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+nav.side{flex-direction:row;align-items:center;padding:8px;border-right:0;border-bottom:1px solid var(--line)}
+nav.side a.home{margin:0 4px 0 0}nav.side form{margin:0 0 0 auto}main{padding-top:24px}}
+</style></head><body>${body}</body></html>`;
+
+const page = (title, body) => doc(title, `<main>${body}</main>`);
+
+const readApps = () => JSON.parse(fs.readFileSync(path.join(root, "apps.json"), "utf8"));
+const appUrl = (a) => `https://${a.subdomain}.${DOMAIN}`;
+const current = (on) => (on ? ' aria-current="page"' : "");
+
+// Hub pages with the app sidebar. Sidebar links open the app in a frame at /<subdomain>.
+function shell(title, apps, active, content) {
+  const links = apps.map((a) => `<a href="/${esc(a.subdomain)}"${current(a === active)}>${esc(a.name)}</a>`);
+  return doc(title, `<div class="shell"><nav class="side"><a class="home" href="/"${current(!active)}>Apps</a>${links.join("")}
+<form method="post" action="/logout"><button class="quiet">Log out</button></form></nav>${content}</div>`);
+}
 
 function loginPage(next, error) {
   return page("Log in", `<form class="login" method="post" action="/login"><h1>Apps</h1><p class="error">${esc(error ?? "")}</p>
@@ -95,10 +119,15 @@ function loginPage(next, error) {
 <button>Log in</button></form>`);
 }
 
-function listPage() {
-  const apps = JSON.parse(fs.readFileSync(path.join(root, "apps.json"), "utf8"));
-  const items = apps.map((a) => `<li><a class="app" href="https://${esc(a.subdomain)}.${DOMAIN}"><b>${esc(a.name)}</b><span>${esc(a.description ?? "")}</span></a></li>`);
-  return page("Apps", `<header><h1>Apps</h1><form method="post" action="/logout"><button class="quiet">Log out</button></form></header><ul>${items.join("")}</ul>`);
+function listPage(apps) {
+  const items = apps.map((a) => `<li><a class="app" href="${esc(appUrl(a))}"><b>${esc(a.name)}</b><span>${esc(a.description ?? "")}</span></a></li>`);
+  return shell("Apps", apps, null, `<div class="pane"><main><header><h1>Apps</h1></header><ul>${items.join("")}</ul></main></div>`);
+}
+
+function framePage(apps, app) {
+  return shell(app.name, apps, app, `<div class="pane frame"><div class="framebar"><b>${esc(app.name)}</b>
+<a href="${esc(appUrl(app))}" target="_blank" rel="noopener">Open separately ↗</a></div>
+<iframe src="${esc(appUrl(app))}" title="${esc(app.name)}" allow="clipboard-write; fullscreen; screen-wake-lock"></iframe></div>`);
 }
 
 function send(res, status, body, headers = {}) {
@@ -161,7 +190,17 @@ async function handle(req, res) {
 
   if (url.pathname === "/" && req.method === "GET") {
     if (!isLoggedIn(req)) return redirect(res, "/login");
-    return send(res, 200, listPage(), { "set-cookie": sessionCookie(secrets()) }); // opening the hub renews the session
+    return send(res, 200, listPage(readApps()), { "set-cookie": sessionCookie(secrets()) }); // opening the hub renews the session
+  }
+
+  // /<subdomain>: the app in a frame, next to the sidebar. Also renews the session.
+  if (req.method === "GET") {
+    const apps = readApps();
+    const app = apps.find((a) => url.pathname === `/${a.subdomain}`);
+    if (app) {
+      if (!isLoggedIn(req)) return redirect(res, `/login?next=${encodeURIComponent(HUB_URL + url.pathname)}`);
+      return send(res, 200, framePage(apps, app), { "set-cookie": sessionCookie(secrets()) });
+    }
   }
 
   send(res, 404, page("Not found", "<h1>Not found</h1>"));

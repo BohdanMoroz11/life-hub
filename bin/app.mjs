@@ -71,6 +71,8 @@ function add(repo, subdomain, name, description) {
   if (!fs.existsSync(path.join(dir, "package.json"))) throw new Error(`${dir} has no package.json`);
   const apps = readApps();
   if (apps.some((a) => a.repo === repo || a.subdomain === subdomain)) throw new Error(`${repo} or ${subdomain} is already registered`);
+  // The hub serves each app's frame view at /<subdomain>, so these would clash with its own routes.
+  if (["apps", "auth", "health", "login", "logout"].includes(subdomain)) throw new Error(`${subdomain} is reserved by the hub`);
   const app = { repo, subdomain, name, description };
 
   const compose = path.join(dir, "compose.yml");
