@@ -2,7 +2,7 @@
 
 Live at https://{{subdomain}}.{{domain}}, behind the shared hub login. Do not add auth to this app.
 
-The hub also shows this app in an iframe at https://apps.{{domain}}/{{subdomain}}, next to a sidebar of all apps. `inHub` (exported from `web/src/lib.ts`) is true there. Use it for anything that should differ inside the hub. For now it hides the "All apps" link, because the sidebar already does that job.
+The hub also shows this app in an iframe at https://apps.{{domain}}/{{subdomain}}, next to a sidebar of all apps. `inHub` (exported from `web/src/lib.ts`) is true there. Use it for anything that should differ inside the hub. For now it hides the "Open hub" link, because the sidebar already does that job.
 
 - The `{{repo}}` container mounts this repo's primary checkout and runs `npm run live`. Caddy reaches it at `{{repo}}:3000`. No host port is published.
 - There is no build or deploy step. Files changed in the primary checkout go live automatically, so `main` there is production.
